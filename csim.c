@@ -1,6 +1,6 @@
 /*
  *	bjkeeleydebonis@wpi.edu
- *
+ *	tdha@wpi.edu
 */
 
 /*
@@ -18,11 +18,6 @@
 	Custom Headers
 */
 #include "cachelab.h"
-
-/*
-	Memory address.
-*/
-typedef unsigned long long int memory_address_t;
 
 /*
 	The statistics for a cache.
@@ -49,7 +44,7 @@ typedef struct {
 */
 typedef struct {
 	bool isValid;
-	memory_address_t tag;
+	unsigned long int tag;
 	int age;
 	// char *block; // dont need this actually
 } Line;
@@ -94,7 +89,6 @@ Cache createEmptyCache (int numOfSets, int numOfLines/*, int blockSize*/)
 			set.lines[lineIndex] = line;	
 		}
 	}
-
 	cache.cacheStatistics.hits = 0;
 	cache.cacheStatistics.misses = 0;
 	cache.cacheStatistics.evictions = 0;
@@ -104,9 +98,9 @@ Cache createEmptyCache (int numOfSets, int numOfLines/*, int blockSize*/)
 /*
 	Free the memory occupied by the cache.
 */
-void cleanCache(Cache cache, CacheSettings cs) 
+void cleanCache(Cache cache, CacheSettings cs, int numberOfSets) 
 {
-	int numberOfSets = pow(2.0, cs.numOfSetIndexBits);
+	//int numberOfSets = pow(2.0, cs.numOfSetIndexBits);
 	int setIndex;
 	// free all the lines
 	for (setIndex = 0; setIndex < numberOfSets; setIndex ++) 
@@ -127,18 +121,6 @@ void cleanCache(Cache cache, CacheSettings cs)
 	Find the index of the LRU line in the query set.
 */
 int findLRULineIndex(Set querySet, CacheSettings cs) {
-	/*int numberOfLines = cs.linesPerSet;
-	int minIndex = 0;
-
-	int lineIndex;
-	for (lineIndex = 1; lineIndex < numberOfLines; lineIndex ++) {
-		if (querySet.lines[lineIndex].age <
-		 querySet.lines[minIndex].age){
-		 	minIndex = lineIndex;
-		}
-	}
-	return minIndex;*/
-
 	int numberOfLines = cs.linesPerSet;
 	int oldestIndex = 0;
 
@@ -152,18 +134,14 @@ int findLRULineIndex(Set querySet, CacheSettings cs) {
 	return oldestIndex;
 }
 
-
 /*
 	Simulate the cache.
 */
-Cache simulateCache(Cache cache, CacheSettings cs, memory_address_t address){
-	// from the address, extract the tag, index, and offset
-	// t = m -( s + b ) where t is tag size
-	int tagSize = (64 - (cs.numOfSetIndexBits + cs.numOfBlockBits));
-
-	memory_address_t inputTag = address >> (cs.numOfSetIndexBits + cs.numOfBlockBits);
-
-	unsigned int setIndex = (address << tagSize) >> (tagSize + cs.numOfSetIndexBits);
+Cache simulateCache(Cache cache, CacheSettings cs, unsigned long int address){
+	// from the address, extract the tag and set index
+	unsigned long int inputTag = (address >> cs.numOfSetIndexBits) >> + cs.numOfBlockBits;
+	unsigned long int temp = address << (64 - cs.numOfSetIndexBits - cs.numOfBlockBits);
+	unsigned long int setIndex = temp  >> (64 - cs.numOfSetIndexBits);
 
 	Set querySet = cache.sets[setIndex]; // get the set this address maps to
 
@@ -181,11 +159,9 @@ Cache simulateCache(Cache cache, CacheSettings cs, memory_address_t address){
 
 	for (lineIndex = 0; lineIndex < cs.linesPerSet; lineIndex++){
 		Line *line = &querySet.lines[lineIndex];
-		// printf("hit count %d\n",line->age);
 		if (line->isValid){
 			if (line->tag == inputTag){ // cache hit
 				cache.cacheStatistics.hits++;
-				//line->age++;
 				line->age = 0;
 				return cache;
 			}
@@ -245,7 +221,6 @@ int main(int argc, char **argv)
 	}
 
 	int numberOfSets = pow(2.0, cacheSettings->numOfSetIndexBits);
-	//int blockSize = pow(2.0, cacheSettings->numOfBlockBits); 
 
 	Cache cache = createEmptyCache(numberOfSets,
 		cacheSettings->linesPerSet/*, blockSize*/);
@@ -260,14 +235,12 @@ int main(int argc, char **argv)
 
 	char a; // one of I or empty char
 	char b; // one of M L S or empty char
- 	memory_address_t address;
+ 	unsigned long int address;
   	int size;
 
-	while (fscanf(traceFile, "%c %c %llx,%d", &a, &b, &address, &size) == 4) {
-		// TODO reduce to one switch statement
-		//char traceCommand; //= ((a == ' ') ? b : a);
-		//if (a == ' ') traceCommand = b; else traceCommand = a;
-		switch(a) {								// don't really need &size
+	while (fscanf(traceFile, "%c %c %lx,%d", &a, &b, &address, &size) == 4) {
+		char traceCommand = (a == 'I') ? a : b;
+		switch(traceCommand) {						// don't really need &size
 			/*case 'I':
 				break;*/
 			case 'L':
@@ -284,29 +257,12 @@ int main(int argc, char **argv)
 			default:
 				break;
 		}
-		switch(b) {								// don't really need &size
-		/*	case 'I':
-				break;*/
-			case 'L':
-				cache = simulateCache(cache, *cacheSettings, address);
-				break;
-			case 'S':
-				cache = simulateCache(cache, *cacheSettings, address);
-				break;
-			case 'M': 
-				// data Modify and then Store, simulate twice 
-				cache = simulateCache(cache, *cacheSettings, address);
-				cache = simulateCache(cache, *cacheSettings, address);
-				break;
-			default:
-				break;
-		}
 	}
 
 	printSummary(cache.cacheStatistics.hits, cache.cacheStatistics.misses,
 	 cache.cacheStatistics.evictions);
 
-	cleanCache(cache, *cacheSettings);
+	cleanCache(cache, *cacheSettings, numberOfSets);
 
 	fclose(traceFile);
 	exit(0);
