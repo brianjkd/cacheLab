@@ -1,3 +1,8 @@
+/*
+ *  bjkeeleydebonis@wpi.edu
+ *  tdha@wpi.edu
+*/
+
 /* 
  * trans.c - Matrix transpose B = A^T
  *
@@ -22,6 +27,54 @@ int is_transpose(int M, int N, int A[N][M], int B[M][N]);
 char transpose_submit_desc[] = "Transpose submission";
 void transpose_submit(int M, int N, int A[N][M], int B[M][N])
 {
+    int blockSize; // changes based on input matrix
+    int blockColIndex, blockRowIndex;
+    int row, col;
+    int blockRowEnd, blockColEnd;
+    int temp, diagonalIndex;
+
+    /*
+        Change block size based on input matrix.
+    */
+    if (M == 64 && N == 64){
+        blockSize = 4;
+    }
+    else if (M == 32 && N == 32){
+        blockSize = 8;
+    }
+    else { // odd-sized matrix.
+        blockSize = 16;
+    }
+    /*
+        This transpose algorithm does not work well for 64 x 64 matrix. Oh well.
+        Simply use blocking. Outer 2 loops partition matrix into blocks, inner
+        2 loops navigate block and perform the tranpose.
+    */
+    for (blockColIndex = 0; blockColIndex < M; blockColIndex += blockSize){
+        for (blockRowIndex = 0; blockRowIndex < N; blockRowIndex += blockSize){
+            blockRowEnd = blockRowIndex + blockSize;
+            // handle case where (row >= N) in odd-sized matrix
+            for (row = blockRowIndex; (row < blockRowEnd) && (row < N); row++){
+               blockColEnd = blockColIndex + blockSize;
+               // handle case where (col >= M) in odd-sized matrix
+               for (col = blockColIndex; (col < blockColEnd) && (col < M); col++){
+                    if(row != col)
+                    {
+                        B[col][row] = A[row][col];
+                    }
+                    else 
+                    {
+                        temp = A[row][col]; // cache it
+                        diagonalIndex = row;
+                    }
+               }
+               if (blockColIndex == blockRowIndex)  
+               {
+                    B[diagonalIndex][diagonalIndex] = temp;  // do not need to move diagonal
+               }
+            }
+        }
+    }
 }
 
 /* 
